@@ -65,5 +65,7 @@
 .addBook input { min-width: 0; height: 36px; padding: 0 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--card); font-size: 9px; }
 .addBook > button { height: 36px; display: flex; align-items: center; gap: 6px; padding: 0 10px; border: 0; border-radius: 6px; color: #fff; background: #497a62; font-size: 9px; font-weight: 700; white-space: nowrap; }
 .addBook > button svg { width: 13px; }
+.storageNotice { padding: 10px 13px; border: 1px solid #d7b1a7; border-radius: 8px; color: #7f3e36; background: #fbefec; font-size: 11px; }
+.formError { grid-column: 1 / -1; color: #9b453b; font-size: 10px; }
 @media(max-width:930px) { .hero { align-items: start; flex-direction: column; } .readingCard { width: 100%; } .bookGrid { grid-template-columns: 1fr; } .addBook { grid-template-columns: 1fr 1fr; } .addBook > button { justify-content: center; } }
 @media(max-width:620px) { .library { gap: 18px; } .hero { padding: 24px 20px; } .hero h1 { font-size: 46px; } .shelfStats { grid-template-columns: 1fr 1fr; } .shelfStats > div { min-height: 58px; padding: 10px; } .shelfStats .monthNote { display: none; } .collection { padding: 14px; } .collectionTitle { align-items: stretch; flex-direction: column; } .search { width: 100%; } .shelfTabs { gap: 12px; overflow-x: auto; } .shelfTabs button { white-space: nowrap; } .bookCard { padding: 10px; } .cardActions { gap: 5px; } .cardActions select { min-width: 81px; } .addBook { grid-template-columns: 1fr; } .addBook > button { justify-content: center; } }

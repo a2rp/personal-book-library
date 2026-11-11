@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { FiBookOpen, FiCheck, FiPlus, FiSearch, FiTrash2 } from "react-icons/fi";
 import ConfirmDialog from "../confirmDialog/index.jsx";
 import styles from "./styles.module.css";
@@ -13,24 +13,67 @@ const starterBooks = [
 ];
 const shelves = ["All books", "Reading", "To read", "Finished"];
 const storageKey = "shelf-notes-books";
+const validStatuses = new Set(["Reading", "To read", "Finished"]);
+
+const isBook = (book) => book && typeof book === "object" &&
+    (typeof book.id === "string" || typeof book.id === "number") &&
+    typeof book.title === "string" && typeof book.author === "string" &&
+    Number.isFinite(book.pages) && book.pages > 0 &&
+    Number.isFinite(book.read) && book.read >= 0 && book.read <= book.pages &&
+    validStatuses.has(book.status);
+
+const loadLibrary = () => {
+    try {
+        const saved = localStorage.getItem(storageKey);
+        if (saved === null) return { books: starterBooks, warning: "" };
+        const parsed = JSON.parse(saved);
+        if (!Array.isArray(parsed) || !parsed.every(isBook)) {
+            return { books: starterBooks, warning: "Saved library data could not be read. Sample books are shown; later changes may replace the unreadable data." };
+        }
+        return { books: parsed, warning: "" };
+    } catch {
+        return { books: starterBooks, warning: "Browser storage is unavailable. Changes may not persist after you leave or refresh." };
+    }
+};
 
 const PersonalBookLibrary = () => {
-    const [books, setBooks] = useState(() => { try { return JSON.parse(localStorage.getItem(storageKey)) ?? starterBooks; } catch { return starterBooks; } });
+    const [initialLibrary] = useState(loadLibrary);
+    const [books, setBooks] = useState(initialLibrary.books);
+    const [storageWarning, setStorageWarning] = useState(initialLibrary.warning);
     const [shelf, setShelf] = useState("All books");
     const [search, setSearch] = useState("");
     const [newTitle, setNewTitle] = useState("");
     const [newAuthor, setNewAuthor] = useState("");
+    const [formError, setFormError] = useState("");
     const [removing, setRemoving] = useState(null);
-    useEffect(() => localStorage.setItem(storageKey, JSON.stringify(books)), [books]);
     const visibleBooks = useMemo(() => books.filter((book) => (shelf === "All books" || book.status === shelf) && (book.title + " " + book.author).toLowerCase().includes(search.toLowerCase())), [books, shelf, search]);
-    const updateStatus = (id, status) => setBooks((current) => current.map((book) => book.id === id ? { ...book, status, read: status === "Finished" ? book.pages : status === "To read" ? 0 : book.read } : book));
-    const addPages = (book) => setBooks((current) => current.map((item) => item.id === book.id ? { ...item, read: Math.min(item.pages, item.read + 10), status: item.read + 10 >= item.pages ? "Finished" : "Reading" } : item));
-    const addBook = (event) => { event.preventDefault(); const title = newTitle.trim(); const author = newAuthor.trim(); if (!title || !author) return; setBooks((current) => [{ id: Date.now(), title, author, pages: 240, read: 0, status: "To read", art: "newRead" }, ...current]); setNewTitle(""); setNewAuthor(""); };
-    const removeBook = () => { setBooks((current) => current.filter((book) => book.id !== removing.id)); setRemoving(null); };
+    const saveBooks = (nextBooks) => {
+        setBooks(nextBooks);
+        try {
+            localStorage.setItem(storageKey, JSON.stringify(nextBooks));
+            setStorageWarning("");
+        } catch {
+            setStorageWarning("Browser storage is unavailable. Changes will not persist after you leave or refresh.");
+        }
+    };
+    const updateStatus = (id, status) => saveBooks(books.map((book) => book.id === id ? { ...book, status, read: status === "Finished" ? book.pages : status === "To read" ? 0 : book.status === "Finished" ? 0 : book.read } : book));
+    const addPages = (book) => saveBooks(books.map((item) => item.id === book.id ? { ...item, read: Math.min(item.pages, item.read + 10), status: item.read + 10 >= item.pages ? "Finished" : "Reading" } : item));
+    const addBook = (event) => {
+        event.preventDefault();
+        const title = newTitle.trim();
+        const author = newAuthor.trim();
+        if (!title || !author) { setFormError("Enter both a book title and an author."); return; }
+        saveBooks([{ id: Date.now(), title, author, pages: 240, read: 0, status: "To read", art: "newRead" }, ...books]);
+        setNewTitle("");
+        setNewAuthor("");
+        setFormError("");
+    };
+    const removeBook = () => { saveBooks(books.filter((book) => book.id !== removing.id)); setRemoving(null); };
     const count = (status) => books.filter((book) => book.status === status).length;
     const currentBook = books.find((book) => book.status === "Reading");
 
     return <div className={styles.library}>
+        {storageWarning && <p className={styles.storageNotice} role="status">{storageWarning}</p>}
         <section className={styles.hero} id="shelves"><div><p className={styles.label}>Your reading life</p><h1>A little more<br />every day.</h1><p>Keep a record of the books you’re reading, saving, and coming back to.</p></div><div className={styles.readingCard} id="reading-now"><div className={styles.miniCover + " " + styles[currentBook?.art ?? "piranesi"]} aria-hidden="true" /><div><span>READING NOW</span><strong>{currentBook?.title ?? "Choose your next book"}</strong><small>{currentBook ? Math.round(currentBook.read / currentBook.pages * 100) + "% through" : "Your next chapter is waiting"}</small></div><FiBookOpen aria-hidden="true" /></div></section>
         <section className={styles.shelfStats} aria-label="Library totals"><div><strong>{books.length}</strong><span>Books in your library</span></div><div><strong>{count("Reading")}</strong><span>Reading now</span></div><div><strong>{count("Finished")}</strong><span>Finished books</span></div><div className={styles.monthNote}>A shelf can hold more than one story at a time.</div></section>
         <section className={styles.collection}>
@@ -46,7 +89,7 @@ const PersonalBookLibrary = () => {
             })}</div>
             {!visibleBooks.length && <p className={styles.empty}>No books on this shelf match your search.</p>}
         </section>
-        <form className={styles.addBook} onSubmit={addBook}><div><h2>Add to the shelf</h2><p>New books start in “To read”.</p></div><label><span>Book title</span><input value={newTitle} onChange={(event) => setNewTitle(event.target.value)} placeholder="A book to remember" /></label><label><span>Author</span><input value={newAuthor} onChange={(event) => setNewAuthor(event.target.value)} placeholder="Author name" /></label><button type="submit"><FiPlus aria-hidden="true" /> Add book</button></form>
+        <form className={styles.addBook} onSubmit={addBook}><div><h2>Add to the shelf</h2><p>New books start in “To read”.</p></div><label><span>Book title</span><input value={newTitle} onChange={(event) => { setNewTitle(event.target.value); setFormError(""); }} placeholder="A book to remember" required /></label><label><span>Author</span><input value={newAuthor} onChange={(event) => { setNewAuthor(event.target.value); setFormError(""); }} placeholder="Author name" required /></label>{formError && <p className={styles.formError} role="alert">{formError}</p>}<button type="submit"><FiPlus aria-hidden="true" /> Add book</button></form>
         {removing && <ConfirmDialog title="Remove this book?" description={removing.title + " will be removed from your library."} confirmLabel="Remove book" onCancel={() => setRemoving(null)} onConfirm={removeBook} />}
     </div>;
 };
